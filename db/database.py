@@ -10,6 +10,9 @@ def get_connection():
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+def _hash(password: str) -> str:
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
 def inicializar_db():
     conn = get_connection()
     cursor = conn.cursor()
@@ -31,7 +34,7 @@ def inicializar_db():
             nombre TEXT NOT NULL,
             correo TEXT UNIQUE NOT NULL,
             grupo TEXT NOT NULL,
-            activo TEXT NOT NULL
+            activo INTEGER NOT NULL DEFAULT 1
         )
     """)
 
@@ -41,7 +44,7 @@ def inicializar_db():
             clave TEXT UNIQUE NOT NULL,
             nombre TEXT NOT NULL,
             creditos INTEGER NOT NULL,
-            activo TEXT NOT NULL
+            activo INTEGER NOT NULL DEFAULT 1
         )
     """)
 
@@ -58,18 +61,17 @@ def inicializar_db():
         )
     """)
 
+    # Insertar usuarios por defecto si la tabla está vacía
     cursor.execute("SELECT COUNT(*) FROM usuarios_sistema")
     if cursor.fetchone()[0] == 0:
-        username = 'admin'
-        rol = 'administrador'
-        estado = 'activo'
-        password = 'admin123'
-        password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        
-        cursor.execute("""
+        usuarios_default = [
+            ('admin',   _hash('admin123'),   'administrador', 'activo'),
+            ('maestro', _hash('maestro123'), 'operador',      'activo'),
+        ]
+        cursor.executemany("""
             INSERT INTO usuarios_sistema (username, password_hash, rol, activo)
             VALUES (?, ?, ?, ?)
-        """, (username, password_hash, rol, estado))
+        """, usuarios_default)
 
     conn.commit()
     conn.close()

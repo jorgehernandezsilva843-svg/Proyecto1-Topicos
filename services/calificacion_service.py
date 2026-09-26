@@ -36,3 +36,7 @@ class CalificacionService:
         if not (0 <= nueva_nota <= 100):
             raise ValueError("La nota debe estar en el rango de 0 a 100.")
         CalificacionRepository.actualizar_nota(calificacion_id, nueva_nota)
+
+    @staticmethod
+    def obtener_promedio_por_materia() -> list[tuple[str, float]]:
+        return CalificacionRepository.obtener_promedio_por_materia()

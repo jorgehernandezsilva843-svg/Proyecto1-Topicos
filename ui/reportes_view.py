@@ -1,11 +1,19 @@
 import os
+import csv
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from ui.styles import WHITE_COLOR
 from repositories.calificacion_repository import CalificacionRepository
+from services.calificacion_service import CalificacionService
+
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 _LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
-
 
 class ReportesView(tk.Frame):
     def __init__(self, master):
@@ -14,6 +22,8 @@ class ReportesView(tk.Frame):
         self._build_ui()
         self._poner_fondo()
         self.generar_reporte()
+        if MATPLOTLIB_AVAILABLE:
+            self.generar_grafica()
 
     def _poner_fondo(self):
         try:
@@ -36,18 +46,25 @@ class ReportesView(tk.Frame):
         lbl.lower()
 
     def _build_ui(self):
-        ttk.Label(self, text="BOLETA DE ALUMNOS REPROBADOS (< 70)", style='Title.TLabel').pack(pady=(10, 20))
+        ttk.Label(self, text="BOLETA DE ALUMNOS REPROBADOS (< 70) Y ESTADÍSTICAS", style='Title.TLabel').pack(pady=(10, 20))
 
-        tree_frame = tk.Frame(self, bg=WHITE_COLOR)
-        tree_frame.pack(fill='both', expand=True, padx=20, pady=15)
+        content_frame = tk.Frame(self, bg=WHITE_COLOR)
+        content_frame.pack(fill='both', expand=True, padx=20, pady=5)
+
+        # Left side: Treeview + Buttons
+        left_frame = tk.Frame(content_frame, bg=WHITE_COLOR)
+        left_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
+
+        tree_frame = tk.Frame(left_frame, bg=WHITE_COLOR)
+        tree_frame.pack(fill='both', expand=True)
 
         columnas = ("Alumno", "Materia Reprobada", "Nota", "Promedio General")
-        self.tree = ttk.Treeview(tree_frame, columns=columnas, show="headings")
+        self.tree = ttk.Treeview(tree_frame, columns=columnas, show="headings", height=10)
 
-        anchos = {"Alumno": 200, "Materia Reprobada": 200, "Nota": 90, "Promedio General": 130}
+        anchos = {"Alumno": 150, "Materia Reprobada": 150, "Nota": 80, "Promedio General": 110}
         for col in columnas:
             self.tree.heading(col, text=col.upper())
-            self.tree.column(col, width=anchos.get(col, 120), anchor='center')
+            self.tree.column(col, width=anchos.get(col, 100), anchor='center')
 
         self.tree.pack(side='left', fill='both', expand=True)
 
@@ -55,7 +72,20 @@ class ReportesView(tk.Frame):
         self.tree.configure(yscrollcommand=sb.set)
         sb.pack(side='right', fill='y')
 
-        ttk.Button(self, text="↻ Actualizar Reporte", command=self.generar_reporte).pack(pady=(0, 15))
+        btn_frame = tk.Frame(left_frame, bg=WHITE_COLOR)
+        btn_frame.pack(fill='x', pady=10)
+
+        ttk.Button(btn_frame, text="↻ Actualizar Reporte", command=self.actualizar_todo).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Exportar a CSV", command=self.exportar_csv).pack(side='left', padx=5)
+
+        # Right side: Graph
+        self.graph_frame = tk.Frame(content_frame, bg=WHITE_COLOR, width=400)
+        self.graph_frame.pack(side='right', fill='both', expand=True)
+
+    def actualizar_todo(self):
+        self.generar_reporte()
+        if MATPLOTLIB_AVAILABLE:
+            self.generar_grafica()
 
     def generar_reporte(self):
         for r in self.tree.get_children():
@@ -80,3 +110,60 @@ class ReportesView(tk.Frame):
                     self.tree.insert("", "end", values=(nombre, materia, f"{nota:.2f}", f"{promedio:.2f}"))
         except Exception as e:
             messagebox.showerror("ERROR", str(e))
+
+    def exportar_csv(self):
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("Archivos CSV", "*.csv"), ("Todos los archivos", "*.*")],
+            title="Exportar a CSV"
+        )
+        if not filepath:
+            return
+        
+        try:
+            with open(filepath, mode='w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Escribir encabezados
+                columnas = [self.tree.heading(col, 'text') for col in self.tree['columns']]
+                writer.writerow(columnas)
+                
+                # Escribir datos
+                for row_id in self.tree.get_children():
+                    row = self.tree.item(row_id)['values']
+                    writer.writerow(row)
+                    
+            messagebox.showinfo("ÉXITO", "Los datos se exportaron correctamente a CSV.")
+        except Exception as e:
+            messagebox.showerror("ERROR", f"No se pudo guardar el archivo CSV:\n{e}")
+
+    def generar_grafica(self):
+        for widget in self.graph_frame.winfo_children():
+            widget.destroy()
+
+        try:
+            datos = CalificacionService.obtener_promedio_por_materia()
+            if not datos:
+                ttk.Label(self.graph_frame, text="No hay datos suficientes para graficar.", style='Content.TLabel').pack(pady=50)
+                return
+
+            materias = [d[0] for d in datos]
+            promedios = [d[1] for d in datos]
+
+            fig = plt.Figure(figsize=(5, 4), dpi=100)
+            ax = fig.add_subplot(111)
+            ax.bar(materias, promedios, color='#132c54')
+            ax.set_ylim([0, 100])
+            ax.set_ylabel('Promedio')
+            ax.set_title('Promedio por Materia')
+            
+            # Rotate x labels if there are many subjects or long names
+            fig.autofmt_xdate(rotation=45)
+
+            canvas = FigureCanvasTkAgg(fig, master=self.graph_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True)
+
+        except Exception as e:
+            ttk.Label(self.graph_frame, text="Error al generar gráfica.", style='Content.TLabel').pack(pady=50)
+            print(f"Error gráfica: {e}")

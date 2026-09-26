@@ -80,3 +80,18 @@ class CalificacionRepository:
             return cursor.fetchone() is not None
         finally:
             conn.close()
+
+    @staticmethod
+    def obtener_promedio_por_materia() -> list[tuple[str, float]]:
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT m.nombre, AVG(c.nota) as promedio
+                FROM calificaciones c
+                INNER JOIN materias m ON c.materia_id = m.id
+                GROUP BY m.nombre
+            """)
+            return cursor.fetchall()
+        finally:
+            conn.close()
