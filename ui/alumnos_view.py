@@ -1,23 +1,60 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from ui.styles import WHITE_COLOR
+from ui.styles import WHITE_COLOR, PRIMARY_COLOR
 from models.domain import Alumno
 from services.alumno_service import AlumnoService
+
+# Ruta al logo institucional
+_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
+
 
 class AlumnosView(tk.Frame):
     def __init__(self, master):
         super().__init__(master, bg=WHITE_COLOR)
         self.alumno_id_actual = None
         self.alumnos_en_memoria = []
+        self._logo_img = None          # referencia para evitar que el GC la elimine
         self._build_ui()
+        self._poner_fondo()
         self.cargar_datos()
 
+    # ── Fondo con logo institucional ──────────────────────────────────────────
+
+    def _poner_fondo(self):
+        """Coloca el logo institucional semitransparente centrado al fondo."""
+        try:
+            from PIL import Image, ImageTk
+            img = Image.open(_LOGO_PATH).convert("RGBA")
+            # Aplicar opacidad del 12 %
+            r, g, b, a = img.split()
+            a = a.point(lambda p: int(p * 0.12))
+            img.putalpha(a)
+            img = img.convert("RGBA")
+            img = img.resize((340, 340), Image.LANCZOS)
+            self._logo_img = ImageTk.PhotoImage(img)
+        except ImportError:
+            # Pillow no disponible: usar imagen normal sin opacidad
+            try:
+                img = tk.PhotoImage(file=_LOGO_PATH)
+                self._logo_img = img
+            except Exception:
+                return
+        except Exception:
+            return
+
+        lbl = tk.Label(self, image=self._logo_img, bg=WHITE_COLOR, bd=0)
+        lbl.place(relx=0.5, rely=0.55, anchor='center')
+        lbl.lower()   # enviar al fondo de la pila Z
+
+    # ── Construcción de la interfaz ───────────────────────────────────────────
+
     def _build_ui(self):
-        ttk.Label(self, text="GESTIÓN DE ALUMNOS", style='Title.TLabel').pack(pady=(10, 20))
+        ttk.Label(self, text="GESTIÓN DE ALUMNOS", style='Title.TLabel').pack(pady=(10, 15))
 
         # --- Buscador ---
         search_frame = tk.Frame(self, bg=WHITE_COLOR)
-        search_frame.pack(fill='x', padx=20, pady=5)
+        search_frame.pack(fill='x', padx=20, pady=4)
 
         ttk.Label(search_frame, text="Buscar (Nombre/Matrícula):", style='Content.TLabel').pack(side='left')
         self.search_var = tk.StringVar()
@@ -27,131 +64,131 @@ class AlumnosView(tk.Frame):
 
         # --- Treeview ---
         tree_frame = tk.Frame(self, bg=WHITE_COLOR)
-        tree_frame.pack(fill='both', expand=True, padx=20, pady=10)
+        tree_frame.pack(fill='both', expand=True, padx=20, pady=8)
 
         columnas = ("ID", "Matrícula", "Nombre", "Correo", "Grupo", "Estado")
-        self.tree = ttk.Treeview(tree_frame, columns=columnas, show="headings", height=9)
+        self.tree = ttk.Treeview(tree_frame, columns=columnas, show="headings", height=8)
 
+        anchos = {"ID": 40, "Matrícula": 90, "Nombre": 160, "Correo": 200, "Grupo": 70, "Estado": 80}
         for col in columnas:
             self.tree.heading(col, text=col.upper())
-            self.tree.column(col, width=120, anchor='center')
+            self.tree.column(col, width=anchos.get(col, 100), anchor='center')
 
         self.tree.pack(side='left', fill='both', expand=True)
+        # Selección carga el formulario automáticamente
         self.tree.bind("<<TreeviewSelect>>", self.seleccionar_registro)
 
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side='right', fill='y')
+        sb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        sb.pack(side='right', fill='y')
 
         # --- Formulario con validaciones ---
         form_frame = tk.Frame(self, bg=WHITE_COLOR)
-        form_frame.pack(fill='x', padx=20, pady=5)
+        form_frame.pack(fill='x', padx=20, pady=4)
 
-        # Registro de comandos de validación
-        vcmd_letras = (self.register(self._validar_solo_letras), '%P')
-        vcmd_alfanum = (self.register(self._validar_alfanumerico), '%P')
+        vcmd_letras  = (self.register(self._solo_letras),   '%P')
+        vcmd_alfanum = (self.register(self._alfanumerico),  '%P')
 
         self.matricula_var = tk.StringVar()
-        self.nombre_var = tk.StringVar()
-        self.correo_var = tk.StringVar()
-        self.grupo_var = tk.StringVar()
+        self.nombre_var    = tk.StringVar()
+        self.correo_var    = tk.StringVar()
+        self.grupo_var     = tk.StringVar()
 
-        ttk.Label(form_frame, text="Matrícula:", style='Content.TLabel').grid(row=0, column=0, sticky='w', pady=4)
-        ttk.Entry(form_frame, textvariable=self.matricula_var, width=40,
-                  validate='key', validatecommand=vcmd_alfanum).grid(row=0, column=1, padx=10, pady=4)
+        campos = [
+            ("Matrícula:",  self.matricula_var, vcmd_alfanum),
+            ("Nombre:",     self.nombre_var,    vcmd_letras),
+            ("Correo:",     self.correo_var,    None),         # correo libre
+            ("Grupo:",      self.grupo_var,     vcmd_alfanum),
+        ]
+        for i, (label, var, vcmd) in enumerate(campos):
+            ttk.Label(form_frame, text=label, style='Content.TLabel').grid(row=i, column=0, sticky='w', pady=3)
+            kwargs = dict(textvariable=var, width=42)
+            if vcmd:
+                kwargs.update(validate='key', validatecommand=vcmd)
+            ttk.Entry(form_frame, **kwargs).grid(row=i, column=1, padx=10, pady=3)
 
-        ttk.Label(form_frame, text="Nombre:", style='Content.TLabel').grid(row=1, column=0, sticky='w', pady=4)
-        ttk.Entry(form_frame, textvariable=self.nombre_var, width=40,
-                  validate='key', validatecommand=vcmd_letras).grid(row=1, column=1, padx=10, pady=4)
-
-        ttk.Label(form_frame, text="Correo:", style='Content.TLabel').grid(row=2, column=0, sticky='w', pady=4)
-        ttk.Entry(form_frame, textvariable=self.correo_var, width=40).grid(row=2, column=1, padx=10, pady=4)
-
-        ttk.Label(form_frame, text="Grupo:", style='Content.TLabel').grid(row=3, column=0, sticky='w', pady=4)
-        ttk.Entry(form_frame, textvariable=self.grupo_var, width=40,
-                  validate='key', validatecommand=vcmd_alfanum).grid(row=3, column=1, padx=10, pady=4)
-
-        # --- Botones de acción ---
+        # --- Botones ---
         btn_frame = tk.Frame(self, bg=WHITE_COLOR)
-        btn_frame.pack(fill='x', padx=20, pady=(8, 15))
+        btn_frame.pack(fill='x', padx=20, pady=(6, 12))
 
-        ttk.Button(btn_frame, text="Guardar", command=self.guardar).pack(side='left', padx=5)
+        # El texto del botón "Guardar" indica la acción actual (INSERT / UPDATE)
+        self.btn_guardar = ttk.Button(btn_frame, text="Guardar (Nuevo)", command=self.guardar)
+        self.btn_guardar.pack(side='left', padx=5)
         ttk.Button(btn_frame, text="Limpiar", command=self.limpiar_formulario).pack(side='left', padx=5)
 
-        # Botón eliminar (rojo, a la derecha)
-        btn_eliminar = tk.Button(btn_frame, text="Eliminar", bg="#d9534f", fg="white",
-                                 font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
-                                 command=self.eliminar)
-        btn_eliminar.pack(side='right', padx=5, ipady=3, ipadx=10)
+        tk.Button(btn_frame, text="Eliminar", bg="#d9534f", fg="white",
+                  font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
+                  command=self.eliminar).pack(side='right', padx=5, ipady=3, ipadx=10)
 
-        # Botón toggle desactivar/activar (texto dinámico)
         self.btn_toggle = ttk.Button(btn_frame, text="Desactivar", command=self.alternar_estado)
         self.btn_toggle.pack(side='right', padx=5)
 
-    # ── Funciones de validación de entrada ────────────────────────────────────
+    # ── Validaciones de entrada ───────────────────────────────────────────────
 
-    def _validar_solo_letras(self, valor_propuesto: str) -> bool:
-        """Permite únicamente letras (A-Z, a-z, acentos, ñ) y espacios."""
-        return all(c.isalpha() or c.isspace() for c in valor_propuesto) or valor_propuesto == ""
+    def _solo_letras(self, val: str) -> bool:
+        return all(c.isalpha() or c.isspace() for c in val) or val == ""
 
-    def _validar_alfanumerico(self, valor_propuesto: str) -> bool:
-        """Permite letras y números, pero bloquea espacios y caracteres especiales."""
-        return all(c.isalnum() for c in valor_propuesto) or valor_propuesto == ""
+    def _alfanumerico(self, val: str) -> bool:
+        return all(c.isalnum() for c in val) or val == ""
 
-    # ── Lógica de datos ────────────────────────────────────────────────────────
+    # ── Lógica de datos ───────────────────────────────────────────────────────
 
     def cargar_datos(self):
         try:
             self.search_var.set("")
             self.alumnos_en_memoria = AlumnoService.listar_todos()
-            self._actualizar_treeview(self.alumnos_en_memoria)
+            self._poblar_tree(self.alumnos_en_memoria)
         except Exception as e:
-            messagebox.showerror("ERROR", f"Fallo al cargar datos:\n{e}")
+            messagebox.showerror("ERROR", str(e))
 
-    def _actualizar_treeview(self, lista_alumnos):
-        for fila in self.tree.get_children():
-            self.tree.delete(fila)
-        for a in lista_alumnos:
-            estado = "ACTIVO" if a.activo == 1 else "INACTIVO"
+    def _poblar_tree(self, lista):
+        for r in self.tree.get_children():
+            self.tree.delete(r)
+        for a in lista:
+            try:
+                es_activo = int(a.activo) == 1
+            except (ValueError, TypeError):
+                es_activo = False
+            estado = "ACTIVO" if es_activo else "INACTIVO"
             self.tree.insert("", "end", values=(a.id, a.matricula, a.nombre, a.correo, a.grupo, estado))
 
     def filtrar(self):
-        termino = self.search_var.get().strip().lower()
-        if not termino:
+        t = self.search_var.get().strip().lower()
+        if not t:
             return
-        filtrados = [a for a in self.alumnos_en_memoria if termino in a.nombre.lower() or termino in a.matricula.lower()]
-        self._actualizar_treeview(filtrados)
+        self._poblar_tree([a for a in self.alumnos_en_memoria
+                           if t in a.nombre.lower() or t in a.matricula.lower()])
 
-    def seleccionar_registro(self, event):
-        seleccion = self.tree.selection()
-        if not seleccion:
+    def seleccionar_registro(self, _event=None):
+        sel = self.tree.selection()
+        if not sel:
             return
-        valores = self.tree.item(seleccion[0], 'values')
-        self.alumno_id_actual = int(valores[0])
-        self.matricula_var.set(valores[1])
-        self.nombre_var.set(valores[2])
-        self.correo_var.set(valores[3])
-        self.grupo_var.set(valores[4])
+        v = self.tree.item(sel[0], 'values')
+        self.alumno_id_actual = int(v[0])
+        self.matricula_var.set(v[1])
+        self.nombre_var.set(v[2])
+        self.correo_var.set(v[3])
+        self.grupo_var.set(v[4])
 
-        # Actualizar texto del botón toggle según el estado actual
-        estado_actual = valores[5]  # "ACTIVO" o "INACTIVO"
-        if estado_actual == "ACTIVO":
-            self.btn_toggle.config(text="Desactivar")
-        else:
-            self.btn_toggle.config(text="Activar")
+        estado_actual = v[5]
+        self.btn_toggle.config(text="Desactivar" if estado_actual == "ACTIVO" else "Activar")
+        # Botón indica modo UPDATE
+        self.btn_guardar.config(text="Guardar (Actualizar)")
+
+    # ── Guardar: INSERT si es nuevo, UPDATE si hay selección ─────────────────
 
     def guardar(self):
         matricula = self.matricula_var.get().strip()
-        nombre = self.nombre_var.get().strip()
-        correo = self.correo_var.get().strip()
-        grupo = self.grupo_var.get().strip()
+        nombre    = self.nombre_var.get().strip()
+        correo    = self.correo_var.get().strip()
+        grupo     = self.grupo_var.get().strip()
 
         if not all([matricula, nombre, correo, grupo]):
             messagebox.showwarning("CAMPOS VACÍOS", "Todos los campos son obligatorios.")
             return
 
-        alumno = Alumno(id=self.alumno_id_actual, matricula=matricula, nombre=nombre,
-                        correo=correo, grupo=grupo)
+        alumno = Alumno(id=self.alumno_id_actual, matricula=matricula,
+                        nombre=nombre, correo=correo, grupo=grupo)
         try:
             if self.alumno_id_actual is None:
                 AlumnoService.insertar(alumno)
@@ -162,19 +199,18 @@ class AlumnosView(tk.Frame):
             self.limpiar_formulario()
             self.cargar_datos()
         except Exception as e:
-            messagebox.showerror("ERROR DE SISTEMA", f"No se pudo guardar:\n{str(e)}")
+            messagebox.showerror("ERROR", str(e))
 
     def alternar_estado(self):
         if self.alumno_id_actual is None:
             messagebox.showwarning("ATENCIÓN", "Seleccione un alumno primero.")
             return
-        texto_accion = self.btn_toggle.cget("text")
-        respuesta = messagebox.askyesno("CONFIRMAR", f"¿Desea {texto_accion.lower()} al alumno?")
-        if not respuesta:
+        accion = self.btn_toggle.cget("text")
+        if not messagebox.askyesno("CONFIRMAR", f"¿Desea {accion.lower()} al alumno?"):
             return
         try:
             AlumnoService.alternar_estado(self.alumno_id_actual)
-            messagebox.showinfo("ÉXITO", f"Alumno {texto_accion.lower()}do correctamente.")
+            messagebox.showinfo("ÉXITO", f"Alumno {accion.lower()}do correctamente.")
             self.limpiar_formulario()
             self.cargar_datos()
         except ValueError as ve:
@@ -186,9 +222,8 @@ class AlumnosView(tk.Frame):
         if self.alumno_id_actual is None:
             messagebox.showwarning("ATENCIÓN", "Seleccione un alumno primero.")
             return
-        respuesta = messagebox.askyesno("CONFIRMAR",
-            "¿Está seguro de que desea eliminar este registro permanentemente? Esta acción es irreversible.")
-        if not respuesta:
+        if not messagebox.askyesno("CONFIRMAR",
+                "¿Está seguro de que desea eliminar este registro permanentemente? Esta acción es irreversible."):
             return
         try:
             AlumnoService.eliminar_registro(self.alumno_id_actual)
@@ -207,5 +242,6 @@ class AlumnosView(tk.Frame):
         self.correo_var.set("")
         self.grupo_var.set("")
         self.btn_toggle.config(text="Desactivar")
+        self.btn_guardar.config(text="Guardar (Nuevo)")
         if self.tree.selection():
             self.tree.selection_remove(self.tree.selection())

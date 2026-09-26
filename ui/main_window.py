@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from ui.styles import apply_institutional_style, PRIMARY_COLOR, WHITE_COLOR, BG_COLOR
@@ -5,6 +6,8 @@ from ui.alumnos_view import AlumnosView
 from ui.materias_view import MateriasView
 from ui.calificaciones_view import CalificacionesView
 from ui.reportes_view import ReportesView
+
+_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
 
 class MainWindow(tk.Tk):
     def __init__(self, usuario):
@@ -61,13 +64,39 @@ class MainWindow(tk.Tk):
         self.mostrar_bienvenida()
 
     def mostrar_bienvenida(self):
-        """Muestra el logo o mensaje inicial al abrir el sistema."""
+        """Muestra el logo institucional y mensaje inicial al abrir el sistema."""
         self._limpiar_contenido()
         self.vista_actual = tk.Frame(self.content_area, bg=WHITE_COLOR)
         self.vista_actual.pack(fill='both', expand=True)
-        
-        ttk.Label(self.vista_actual, text="SISTEMA DE CONTROL ESCOLAR", style='Title.TLabel').pack(pady=(250, 20))
-        ttk.Label(self.vista_actual, text="Seleccione un módulo en el menú lateral izquierdo para comenzar.", style='Content.TLabel').pack()
+
+        # Logo institucional como fondo grande centrado
+        self._logo_bienvenida = None
+        try:
+            from PIL import Image, ImageTk
+            img = Image.open(_LOGO_PATH).convert("RGBA")
+            r, g, b, a = img.split()
+            a = a.point(lambda p: int(p * 0.18))
+            img.putalpha(a)
+            img = img.resize((420, 420), Image.LANCZOS)
+            self._logo_bienvenida = ImageTk.PhotoImage(img)
+        except ImportError:
+            try:
+                self._logo_bienvenida = tk.PhotoImage(file=_LOGO_PATH)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        if self._logo_bienvenida:
+            lbl_img = tk.Label(self.vista_actual, image=self._logo_bienvenida, bg=WHITE_COLOR, bd=0)
+            lbl_img.place(relx=0.5, rely=0.5, anchor='center')
+            lbl_img.lower()
+
+        ttk.Label(self.vista_actual, text="SISTEMA DE CONTROL ESCOLAR",
+                  style='Title.TLabel').pack(pady=(220, 15))
+        ttk.Label(self.vista_actual,
+                  text="Seleccione un módulo en el menú lateral izquierdo para comenzar.",
+                  style='Content.TLabel').pack()
 
     def mostrar_vista(self, vista_clase):
         """Destruye la vista actual e incrusta la nueva vista dinámicamente."""

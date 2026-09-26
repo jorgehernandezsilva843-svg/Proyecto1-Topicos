@@ -17,7 +17,6 @@ class AlumnoService:
 
     @staticmethod
     def desactivar(alumno_id: int):
-        """Desactiva directamente sin verificar calificaciones (compatibilidad con código existente)."""
         AlumnoRepository.cambiar_estado(alumno_id, 0)
 
     @staticmethod
@@ -31,10 +30,10 @@ class AlumnoService:
         if alumno is None:
             raise ValueError("Alumno no encontrado.")
 
-        if alumno.activo == 1:
+        if int(alumno.activo) == 1:
             # Verificar integridad antes de desactivar
             if CalificacionRepository.existe_por_alumno(alumno_id):
-                raise ValueError("No se puede desactivar un alumno con calificaciones registradas. Use 'Eliminar' solo si no tiene movimientos.")
+                raise ValueError("No se puede desactivar un alumno con calificaciones registradas.")
             AlumnoRepository.cambiar_estado(alumno_id, 0)
         else:
             # Reactivar sin restricciones
