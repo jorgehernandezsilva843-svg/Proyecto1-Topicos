@@ -1,0 +1,20 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bases de datos locales (evita subir datos sensibles o de desarrollo)
+*.db
+*.sqlite
+*.sqlite3
+escolar.db
+
+# Archivos de editores y sistemas operativos
+.vscode/
+.idea/
+.DS_Store
