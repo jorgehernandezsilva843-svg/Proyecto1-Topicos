@@ -37,14 +37,15 @@ class AlumnoRepository:
         conn.close()
 
     @staticmethod
-    def desactivar(alumno_id: int):
+    def cambiar_estado(alumno_id: int, nuevo_estado: int):
+        """Actualiza el campo activo a 1 (activo) o 0 (inactivo)."""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE alumnos
-            SET activo = 0
+            SET activo = ?
             WHERE id = ?
-        """, (alumno_id,))
+        """, (nuevo_estado, alumno_id))
         conn.commit()
         conn.close()
 

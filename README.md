@@ -69,5 +69,8 @@ El código respeta fielmente el patrón de separación de responsabilidades (Arq
 
 ## Capturas
 ![Login]()
+![alt text](image.png)
 ![Catálogos]()
-![Movimientos]()
+![alt text](image-1.png)
+
+

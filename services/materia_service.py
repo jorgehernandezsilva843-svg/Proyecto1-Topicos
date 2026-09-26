@@ -6,7 +6,7 @@ class MateriaService:
     @staticmethod
     def insertar(materia: Materia) -> int:
         return MateriaRepository.insertar(materia)
-        
+
     @staticmethod
     def listar_todos() -> list[Materia]:
         return MateriaRepository.listar_todos()
@@ -17,9 +17,32 @@ class MateriaService:
 
     @staticmethod
     def desactivar(materia_id: int):
-        if CalificacionRepository.existe_por_materia(materia_id):
-            raise ValueError("No se puede desactivar un registro con movimientos activos.")
-        MateriaRepository.desactivar(materia_id)
+        """Desactiva directamente sin verificar calificaciones (compatibilidad con código existente)."""
+        MateriaRepository.cambiar_estado(materia_id, 0)
+
+    @staticmethod
+    def alternar_estado(materia_id: int):
+        """
+        Consulta el estado actual de la materia.
+        Si está activa (1) y tiene calificaciones, lanza ValueError.
+        Si está inactiva (0), la reactiva sin restricción.
+        """
+        materia = MateriaRepository.obtener_por_id(materia_id) if hasattr(MateriaRepository, 'obtener_por_id') else None
+
+        # Fallback: consultar desde la lista completa
+        if materia is None:
+            todas = MateriaRepository.listar_todos()
+            materia = next((m for m in todas if m.id == materia_id), None)
+
+        if materia is None:
+            raise ValueError("Materia no encontrada.")
+
+        if materia.activo == 1:
+            if CalificacionRepository.existe_por_materia(materia_id):
+                raise ValueError("No se puede desactivar una materia con calificaciones registradas.")
+            MateriaRepository.cambiar_estado(materia_id, 0)
+        else:
+            MateriaRepository.cambiar_estado(materia_id, 1)
 
     @staticmethod
     def eliminar_registro(materia_id: int):
