@@ -8,6 +8,7 @@ from ui.calificaciones_view import CalificacionesView
 from ui.reportes_view import ReportesView
 from ui.graficas_view import GraficasView
 from ui.bitacora_view import BitacoraView
+from ui.dashboard_view import DashboardView
 
 _LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
 
@@ -73,6 +74,16 @@ class MainWindow(tk.Tk):
             self.btn_usuarios.pack_forget()
             self.btn_bitacora.pack_forget()
 
+        # Tema toggle button
+        self.modo_actual = 'claro'
+        self.btn_tema = ttk.Button(
+            self.sidebar,
+            text="🌙 Modo Oscuro",
+            style='Sidebar.TButton',
+            command=self.alternar_tema
+        )
+        self.btn_tema.pack(fill='x', ipady=5, pady=1)
+
         # Espaciador + Logo TecNM + Cerrar Sesión al fondo
         ttk.Frame(self.sidebar, style='Sidebar.TFrame').pack(fill='both', expand=True)
 
@@ -99,43 +110,23 @@ class MainWindow(tk.Tk):
         self.content_area.pack(side='right', fill='both', expand=True)
 
         self.vista_actual = None
-        self.mostrar_bienvenida()
+        # Cargar Dashboard por defecto
+        self.mostrar_vista(DashboardView)
 
-    # ── Pantalla de bienvenida ────────────────────────────────────────────────
+    def alternar_tema(self):
+        from ui.styles import aplicar_tema
+        if self.modo_actual == 'claro':
+            self.modo_actual = 'oscuro'
+            self.btn_tema.config(text="☀️ Modo Claro")
+        else:
+            self.modo_actual = 'claro'
+            self.btn_tema.config(text="🌙 Modo Oscuro")
+        
+        aplicar_tema(self.modo_actual, self)
 
-    def mostrar_bienvenida(self):
-        self._limpiar_contenido()
-        self.vista_actual = tk.Frame(self.content_area, bg=WHITE_COLOR)
-        self.vista_actual.pack(fill='both', expand=True)
-
-        self._logo_bienvenida = None
-        try:
-            from PIL import Image, ImageTk
-            img = Image.open(_LOGO_PATH).convert("RGBA")
-            r, g, b, a = img.split()
-            a = a.point(lambda p: int(p * 0.18))
-            img.putalpha(a)
-            img = img.resize((420, 420), Image.LANCZOS)
-            self._logo_bienvenida = ImageTk.PhotoImage(img)
-        except ImportError:
-            try:
-                self._logo_bienvenida = tk.PhotoImage(file=_LOGO_PATH)
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-        if self._logo_bienvenida:
-            lbl_img = tk.Label(self.vista_actual, image=self._logo_bienvenida,
-                               bg=WHITE_COLOR, bd=0)
-            lbl_img.place(relx=0.5, rely=0.5, anchor='center')
-            lbl_img.lower()
-
-        ttk.Label(self.vista_actual, text="SISTEMA DE CONTROL ESCOLAR",
-                  style='Title.TLabel').pack(pady=(220, 15))
-        ttk.Label(self.vista_actual,
-                  text="Seleccione un módulo en el menú lateral izquierdo para comenzar.",
-                  style='Content.TLabel').pack()
+        # Matplotlib theme support if the current view is DashboardView or GraficasView
+        if hasattr(self.vista_actual, 'generar_grafica'):
+            self.vista_actual.generar_grafica()
 
     # ── Navegación dinámica ───────────────────────────────────────────────────
 
@@ -144,6 +135,10 @@ class MainWindow(tk.Tk):
         self.vista_actual = vista_clase(self.content_area, usuario=self.usuario)
         if hasattr(self.vista_actual, 'pack'):
             self.vista_actual.pack(fill='both', expand=True)
+            
+        # Re-aplicar el tema a la nueva vista cargada
+        from ui.styles import aplicar_tema
+        aplicar_tema(self.modo_actual, self)
 
     def _limpiar_contenido(self):
         if self.vista_actual:
