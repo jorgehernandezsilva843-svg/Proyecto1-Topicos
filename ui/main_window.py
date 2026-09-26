@@ -6,9 +6,10 @@ from ui.alumnos_view import AlumnosView
 from ui.materias_view import MateriasView
 from ui.calificaciones_view import CalificacionesView
 from ui.reportes_view import ReportesView
+from ui.graficas_view import GraficasView
+from ui.bitacora_view import BitacoraView
 
 _LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
-
 
 class MainWindow(tk.Tk):
     def __init__(self, usuario):
@@ -25,37 +26,31 @@ class MainWindow(tk.Tk):
         main_container = tk.Frame(self, bg=WHITE_COLOR)
         main_container.pack(fill='both', expand=True)
 
-        # ══════════════════════════════════════
-        # PANEL IZQUIERDO: BARRA LATERAL (SIDEBAR)
-        # ══════════════════════════════════════
         self.sidebar = ttk.Frame(main_container, style='Sidebar.TFrame', width=230)
         self.sidebar.pack(side='left', fill='y')
         self.sidebar.pack_propagate(False)
 
-        # Encabezado con nombre de usuario y rol
         user_info = f"Bienvenido(a)\n{self.usuario.username}\n{self.usuario.rol.upper()}"
         ttk.Label(self.sidebar, text="MENÚ PRINCIPAL", style='Sidebar.TLabel',
                   font=("Segoe UI", 13, "bold"), anchor='center').pack(pady=(30, 10), fill='x')
         ttk.Label(self.sidebar, text=user_info, style='Sidebar.TLabel',
                   anchor='center', justify='center').pack(pady=(0, 30), fill='x')
 
-        # Separador visual
         tk.Frame(self.sidebar, bg="#1e4480", height=1).pack(fill='x', padx=15, pady=(0, 15))
 
-        # Botones de módulos comunes a todos los roles
         botones_comunes = [
             ("ALUMNOS",         lambda: self.mostrar_vista(AlumnosView)),
             ("MATERIAS",        lambda: self.mostrar_vista(MateriasView)),
             ("CALIFICACIONES",  lambda: self.mostrar_vista(CalificacionesView)),
             ("REPORTES",        lambda: self.mostrar_vista(ReportesView)),
+            ("GRÁFICAS",        lambda: self.mostrar_vista(GraficasView)),
         ]
         for texto, cmd in botones_comunes:
             ttk.Button(self.sidebar, text=texto, style='Sidebar.TButton',
-                       command=cmd).pack(fill='x', ipady=12, pady=1)
+                       command=cmd).pack(fill='x', ipady=5, pady=1)
 
-        # ── Botón exclusivo del Administrador ──
-        # Solo visible si el usuario tiene rol 'administrador'
         es_admin = self.usuario.rol.lower() == 'administrador'
+        
         self.btn_usuarios = ttk.Button(
             self.sidebar,
             text="GESTIÓN DE USUARIOS",
@@ -63,16 +58,39 @@ class MainWindow(tk.Tk):
             command=self.abrir_gestion_usuarios,
             state='normal' if es_admin else 'disabled'
         )
-        self.btn_usuarios.pack(fill='x', ipady=12, pady=1)
+        self.btn_usuarios.pack(fill='x', ipady=5, pady=1)
+
+        self.btn_bitacora = ttk.Button(
+            self.sidebar,
+            text="BITÁCORA DE ACCIONES",
+            style='Sidebar.TButton',
+            command=lambda: self.mostrar_vista(BitacoraView),
+            state='normal' if es_admin else 'disabled'
+        )
+        self.btn_bitacora.pack(fill='x', ipady=5, pady=1)
 
         if not es_admin:
-            # Ocultarlo completamente para el operador (más limpio que dejarlo gris)
             self.btn_usuarios.pack_forget()
+            self.btn_bitacora.pack_forget()
 
-        # Espaciador + Cerrar Sesión al fondo
+        # Espaciador + Logo TecNM + Cerrar Sesión al fondo
         ttk.Frame(self.sidebar, style='Sidebar.TFrame').pack(fill='both', expand=True)
+
+        self._logo_sidebar = None
+        try:
+            from PIL import Image, ImageTk
+            img = Image.open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_tecnm.png")).convert("RGBA")
+            # Agrandar el logo al ancho completo del sidebar (230px), manteniendo proporción
+            proporcional_h = int(img.height * (230 / img.width))
+            img = img.resize((230, proporcional_h), Image.LANCZOS)
+            self._logo_sidebar = ImageTk.PhotoImage(img)
+            lbl_logo = tk.Label(self.sidebar, image=self._logo_sidebar, bg="#132c54", bd=0)
+            lbl_logo.pack(pady=0)
+        except Exception:
+            pass
+
         ttk.Button(self.sidebar, text="CERRAR SESIÓN", style='Sidebar.TButton',
-                   command=self.cerrar_sesion).pack(fill='x', ipady=12, side='bottom', pady=(0, 20))
+                   command=self.cerrar_sesion).pack(fill='x', ipady=5, side='bottom', pady=(0, 0))
 
         # ══════════════════════════════════════
         # PANEL DERECHO: ÁREA DE CONTENIDO
@@ -123,7 +141,7 @@ class MainWindow(tk.Tk):
 
     def mostrar_vista(self, vista_clase):
         self._limpiar_contenido()
-        self.vista_actual = vista_clase(self.content_area)
+        self.vista_actual = vista_clase(self.content_area, usuario=self.usuario)
         if hasattr(self.vista_actual, 'pack'):
             self.vista_actual.pack(fill='both', expand=True)
 

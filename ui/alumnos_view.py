@@ -6,12 +6,13 @@ from models.domain import Alumno
 from services.alumno_service import AlumnoService
 
 # Ruta al logo institucional
-_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
+_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_tecnm.png")
 
 
 class AlumnosView(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, usuario=None):
         super().__init__(master, bg=WHITE_COLOR)
+        self.usuario = usuario
         self.alumno_id_actual = None
         self.alumnos_en_memoria = []
         self._logo_img = None          # referencia para evitar que el GC la elimine
@@ -26,18 +27,12 @@ class AlumnosView(tk.Frame):
         try:
             from PIL import Image, ImageTk
             img = Image.open(_LOGO_PATH).convert("RGBA")
-            # Aplicar opacidad del 12 %
-            r, g, b, a = img.split()
-            a = a.point(lambda p: int(p * 0.12))
-            img.putalpha(a)
-            img = img.convert("RGBA")
-            img = img.resize((340, 340), Image.LANCZOS)
+            # a = a.point(lambda p: int(p * 0.12)) # Removed opacity
+            img = img.resize((340, 150), Image.LANCZOS)
             self._logo_img = ImageTk.PhotoImage(img)
         except ImportError:
-            # Pillow no disponible: usar imagen normal sin opacidad
             try:
-                img = tk.PhotoImage(file=_LOGO_PATH)
-                self._logo_img = img
+                self._logo_img = tk.PhotoImage(file=_LOGO_PATH)
             except Exception:
                 return
         except Exception:
@@ -114,14 +109,22 @@ class AlumnosView(tk.Frame):
         # El texto del botón "Guardar" indica la acción actual (INSERT / UPDATE)
         self.btn_guardar = ttk.Button(btn_frame, text="Guardar (Nuevo)", command=self.guardar)
         self.btn_guardar.pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Limpiar", command=self.limpiar_formulario).pack(side='left', padx=5)
+        self.btn_limpiar = ttk.Button(btn_frame, text="Limpiar", command=self.limpiar_formulario)
+        self.btn_limpiar.pack(side='left', padx=5)
 
-        tk.Button(btn_frame, text="Eliminar", bg="#d9534f", fg="white",
+        self.btn_eliminar = tk.Button(btn_frame, text="Eliminar", bg="#d9534f", fg="white",
                   font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
-                  command=self.eliminar).pack(side='right', padx=5, ipady=3, ipadx=10)
+                  command=self.eliminar)
+        self.btn_eliminar.pack(side='right', padx=5, ipady=3, ipadx=10)
 
         self.btn_toggle = ttk.Button(btn_frame, text="Desactivar", command=self.alternar_estado)
         self.btn_toggle.pack(side='right', padx=5)
+
+        if self.usuario and self.usuario.rol.lower() == 'operador':
+            self.btn_guardar.pack_forget()
+            self.btn_limpiar.pack_forget()
+            self.btn_eliminar.pack_forget()
+            self.btn_toggle.pack_forget()
 
     # ── Validaciones de entrada ───────────────────────────────────────────────
 

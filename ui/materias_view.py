@@ -5,12 +5,13 @@ from ui.styles import WHITE_COLOR
 from models.domain import Materia
 from services.materia_service import MateriaService
 
-_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
+_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_tecnm.png")
 
 
 class MateriasView(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, usuario=None):
         super().__init__(master, bg=WHITE_COLOR)
+        self.usuario = usuario
         self.materia_id_actual = None
         self.materias_en_memoria = []
         self._logo_img = None
@@ -24,10 +25,7 @@ class MateriasView(tk.Frame):
         try:
             from PIL import Image, ImageTk
             img = Image.open(_LOGO_PATH).convert("RGBA")
-            r, g, b, a = img.split()
-            a = a.point(lambda p: int(p * 0.12))
-            img.putalpha(a)
-            img = img.resize((340, 340), Image.LANCZOS)
+            img = img.resize((340, 150), Image.LANCZOS)
             self._logo_img = ImageTk.PhotoImage(img)
         except ImportError:
             try:
@@ -97,14 +95,22 @@ class MateriasView(tk.Frame):
 
         self.btn_guardar = ttk.Button(btn_frame, text="Guardar (Nueva)", command=self.guardar)
         self.btn_guardar.pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="Limpiar", command=self.limpiar_formulario).pack(side='left', padx=5)
+        self.btn_limpiar = ttk.Button(btn_frame, text="Limpiar", command=self.limpiar_formulario)
+        self.btn_limpiar.pack(side='left', padx=5)
 
-        tk.Button(btn_frame, text="Eliminar", bg="#d9534f", fg="white",
+        self.btn_eliminar = tk.Button(btn_frame, text="Eliminar", bg="#d9534f", fg="white",
                   font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
-                  command=self.eliminar).pack(side='right', padx=5, ipady=3, ipadx=10)
+                  command=self.eliminar)
+        self.btn_eliminar.pack(side='right', padx=5, ipady=3, ipadx=10)
 
         self.btn_toggle = ttk.Button(btn_frame, text="Desactivar", command=self.alternar_estado)
         self.btn_toggle.pack(side='right', padx=5)
+
+        if self.usuario and self.usuario.rol.lower() == 'operador':
+            self.btn_guardar.pack_forget()
+            self.btn_limpiar.pack_forget()
+            self.btn_eliminar.pack_forget()
+            self.btn_toggle.pack_forget()
 
     # ── Validaciones ─────────────────────────────────────────────────────────
 

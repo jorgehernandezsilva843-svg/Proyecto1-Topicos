@@ -18,14 +18,16 @@ class CalificacionRepository:
             conn.close()
 
     @staticmethod
-    def actualizar_nota(calificacion_id: int, nueva_nota: float):
-        """UPDATE de la nota de una calificación existente por su ID."""
+    def actualizar(calificacion: Calificacion):
+        """UPDATE completo de una calificación."""
         conn = get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                UPDATE calificaciones SET nota = ? WHERE id = ?
-            """, (nueva_nota, calificacion_id))
+                UPDATE calificaciones
+                SET alumno_id = ?, materia_id = ?, periodo = ?, nota = ?
+                WHERE id = ?
+            """, (calificacion.alumno_id, calificacion.materia_id, calificacion.periodo, calificacion.nota, calificacion.id))
             conn.commit()
         finally:
             conn.close()

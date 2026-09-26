@@ -61,6 +61,16 @@ def inicializar_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bitacora (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            accion TEXT NOT NULL,
+            fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios_sistema(id)
+        )
+    """)
+
     # Insertar usuarios por defecto si la tabla está vacía
     cursor.execute("SELECT COUNT(*) FROM usuarios_sistema")
     if cursor.fetchone()[0] == 0:

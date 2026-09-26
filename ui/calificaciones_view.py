@@ -7,12 +7,13 @@ from services.materia_service import MateriaService
 from services.calificacion_service import CalificacionService
 from repositories.calificacion_repository import CalificacionRepository
 
-_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
+_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo_tecnm.png")
 
 
 class CalificacionesView(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, usuario=None):
         super().__init__(master, bg=WHITE_COLOR)
+        self.usuario = usuario
         self.calificacion_id_actual = None   # ID de la calificación seleccionada (para UPDATE)
         self.mapa_alumnos  = {}
         self.mapa_materias = {}
@@ -28,10 +29,7 @@ class CalificacionesView(tk.Frame):
         try:
             from PIL import Image, ImageTk
             img = Image.open(_LOGO_PATH).convert("RGBA")
-            r, g, b, a = img.split()
-            a = a.point(lambda p: int(p * 0.12))
-            img.putalpha(a)
-            img = img.resize((340, 340), Image.LANCZOS)
+            img = img.resize((340, 150), Image.LANCZOS)
             self._logo_img = ImageTk.PhotoImage(img)
         except ImportError:
             try:
@@ -60,9 +58,19 @@ class CalificacionesView(tk.Frame):
         self.combo_materias = ttk.Combobox(form_frame, state='readonly', width=45)
         self.combo_materias.grid(row=1, column=1, padx=10, pady=4)
 
-        ttk.Label(form_frame, text="Periodo (Ej. 2023-1):", style='Content.TLabel').grid(row=2, column=0, sticky='w', pady=4)
-        self.periodo_var = tk.StringVar()
-        ttk.Entry(form_frame, textvariable=self.periodo_var, width=20).grid(row=2, column=1, sticky='w', padx=10, pady=4)
+        ttk.Label(form_frame, text="Periodo:", style='Content.TLabel').grid(row=2, column=0, sticky='w', pady=4)
+        
+        periodo_frame = tk.Frame(form_frame, bg=WHITE_COLOR)
+        periodo_frame.grid(row=2, column=1, sticky='w', padx=10, pady=4)
+
+        self.combo_periodo = ttk.Combobox(periodo_frame, values=["febrero-junio", "agosto-diciembre"], state='readonly', width=20)
+        self.combo_periodo.pack(side='left', padx=(0, 5))
+
+        ttk.Label(periodo_frame, text="Año:", style='Content.TLabel', background=WHITE_COLOR).pack(side='left', padx=5)
+
+        self.anio_var = tk.StringVar()
+        vcmd_anio = (self.register(self._solo_anio), '%P')
+        ttk.Entry(periodo_frame, textvariable=self.anio_var, width=10, validate='key', validatecommand=vcmd_anio).pack(side='left')
 
         ttk.Label(form_frame, text="Nota (0-100):", style='Content.TLabel').grid(row=3, column=0, sticky='w', pady=4)
         self.nota_var = tk.StringVar()
@@ -111,6 +119,12 @@ class CalificacionesView(tk.Frame):
         except Exception:
             return False
 
+    def _solo_anio(self, val: str) -> bool:
+        """Permite solo dígitos y un máximo de 4 caracteres."""
+        if val == "":
+            return True
+        return val.isdigit() and len(val) <= 4
+
     # ── Datos ─────────────────────────────────────────────────────────────────
 
     def cargar_datos_iniciales(self):
@@ -144,12 +158,19 @@ class CalificacionesView(tk.Frame):
         v = self.tree.item(sel[0], 'values')
         self.calificacion_id_actual = int(v[0])
 
-        # Solo cargamos la nota (Alumno, Materia y Periodo son de solo lectura al editar)
         self.nota_var.set(str(v[4]))
-        # Mostrar contexto en los combos (solo informativo, estado readonly)
         nombre_alumno  = v[1]
         nombre_materia = v[2]
-        self.periodo_var.set(v[3])
+        
+        # Parsear el periodo
+        periodo_completo = str(v[3])
+        parts = periodo_completo.split(" ")
+        if len(parts) == 2:
+            self.combo_periodo.set(parts[0])
+            self.anio_var.set(parts[1])
+        else:
+            self.combo_periodo.set("")
+            self.anio_var.set("")
 
         # Seleccionar el combo más cercano al alumno/materia mostrado
         for k in self.mapa_alumnos:
@@ -162,7 +183,7 @@ class CalificacionesView(tk.Frame):
                 break
 
         # Cambiar botón a modo UPDATE
-        self.btn_accion.config(text="Actualizar Nota")
+        self.btn_accion.config(text="Actualizar Calificación")
 
     def guardar(self):
         """INSERT si no hay selección, UPDATE si la hay."""
@@ -178,33 +199,36 @@ class CalificacionesView(tk.Frame):
             messagebox.showwarning("ERROR", "La nota debe ser un número válido.")
             return
 
-        # ── Modo UPDATE ──
-        if self.calificacion_id_actual is not None:
-            try:
-                CalificacionService.modificar_nota(self.calificacion_id_actual, nota)
-                messagebox.showinfo("ÉXITO", "Nota actualizada correctamente.")
-                self.limpiar_formulario()
-                self.cargar_calificaciones()
-            except ValueError as ve:
-                messagebox.showerror("REGLA DE NEGOCIO", str(ve))
-            except Exception as e:
-                messagebox.showerror("ERROR", str(e))
-            return
-
-        # ── Modo INSERT ──
         sel_alumno  = self.combo_alumnos.get()
         sel_materia = self.combo_materias.get()
-        periodo     = self.periodo_var.get().strip()
+        semestre    = self.combo_periodo.get()
+        anio        = self.anio_var.get().strip()
+        
+        periodo = f"{semestre} {anio}" if semestre and anio else ""
 
-        if not all([sel_alumno, sel_materia, periodo]):
-            messagebox.showwarning("CAMPOS VACÍOS", "Alumno, Materia y Periodo son obligatorios para registrar.")
+        if not all([sel_alumno, sel_materia, semestre, anio]):
+            messagebox.showwarning("CAMPOS VACÍOS", "Alumno, Materia, Semestre y Año son obligatorios.")
+            return
+            
+        if len(anio) != 4:
+            messagebox.showwarning("AÑO INVÁLIDO", "El año debe tener 4 dígitos.")
             return
 
         try:
             alumno_id  = self.mapa_alumnos[sel_alumno]
             materia_id = self.mapa_materias[sel_materia]
-            CalificacionService.registrar_calificacion(alumno_id, materia_id, periodo, nota)
-            messagebox.showinfo("ÉXITO", "Calificación registrada correctamente.")
+            
+            usuario_id = self.usuario.id if self.usuario else 0
+            
+            # ── Modo UPDATE ──
+            if self.calificacion_id_actual is not None:
+                CalificacionService.modificar_calificacion(self.calificacion_id_actual, alumno_id, materia_id, periodo, nota, usuario_id)
+                messagebox.showinfo("ÉXITO", "Calificación actualizada correctamente.")
+            else:
+                # ── Modo INSERT ──
+                CalificacionService.registrar_calificacion(alumno_id, materia_id, periodo, nota, usuario_id)
+                messagebox.showinfo("ÉXITO", "Calificación registrada correctamente.")
+            
             self.limpiar_formulario()
             self.cargar_calificaciones()
         except ValueError as ve:
@@ -216,7 +240,8 @@ class CalificacionesView(tk.Frame):
         self.calificacion_id_actual = None
         self.combo_alumnos.set("")
         self.combo_materias.set("")
-        self.periodo_var.set("")
+        self.combo_periodo.set("")
+        self.anio_var.set("")
         self.nota_var.set("")
         self.btn_accion.config(text="Registrar")
         if self.tree.selection():
