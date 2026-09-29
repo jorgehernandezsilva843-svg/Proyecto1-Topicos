@@ -1,6 +1,6 @@
 # Sistema de Control Escolar Madero
 **Opción:** 3
-**Desarrollador:** [TU NOMBRE AQUÍ]
+**Desarrollador:** [Hernandez Silva Jorge Emilio]
 
 ## Descripción
 El **Sistema de Control Escolar Madero** es una aplicación de escritorio diseñada para resolver los problemas de gestión administrativa en instituciones educativas. Está dirigida a personal administrativo y profesores que necesitan una herramienta centralizada, moderna y segura para administrar el registro de alumnos, el catálogo de materias y el historial de calificaciones.
